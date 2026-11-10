@@ -1,0 +1,29 @@
+# Compilação / IDE
+bin/
+obj/
+.vs/
+*.user
+*.suo
+TestResults/
+
+# Configuração local da instalação (usuários do portal, pastas da rede, e-mails)
+config.local.json
+.env
+
+# Logs e arquivos de controle gerados pelo robô
+logs/
+numeros_eventos.txt
+
+# Dados reais do portal: cotações em PDF, exportações e capturas de tela/HTML
+*.pdf
+*.xlsx
+HTML.txt
+diagnostico/
+
+# Testes que dependem dos PDFs reais (ficam só na máquina de desenvolvimento)
+*.local.cs
+SAP_ArcellorMittal.Tests/Fixtures/
+
+# Modelos copiados de outro projeto (não são usados por este)
+SAP_ArcellorMittal/.github/
+SAP_ArcellorMittal/criar-tarefa.ps1

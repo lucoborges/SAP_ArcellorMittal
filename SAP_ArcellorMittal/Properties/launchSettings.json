@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "SAP_ArcellorMittal": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

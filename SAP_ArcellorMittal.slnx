@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SAP_ArcellorMittal.Tests/SAP_ArcellorMittal.Tests.csproj" />
+  <Project Path="SAP_ArcellorMittal/SAP_ArcellorMittal.csproj" />
+</Solution>

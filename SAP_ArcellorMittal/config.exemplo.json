@@ -1,0 +1,20 @@
+{
+  // Copie este arquivo para "config.local.json" (mesma pasta) e preencha.
+  // O config.local.json NÃO vai para o Git. Senhas ficam só em variáveis de ambiente (veja o README).
+
+  // Usuários do portal SRM, na ordem em que são processados
+  "Contas": [ "USUARIO_1", "USUARIO_2" ],
+
+  // Planilha do vendedor com as cotações já finalizadas (opcional; coluna "SOLICITAÇAO")
+  "PlanilhaVendedor": "\\\\SERVIDOR\\Pasta\\cotacoes.xlsx",
+
+  // Pasta do banco JSON (eventos já processados) e pasta dos PDFs baixados
+  "PastaBanco": "\\\\SERVIDOR\\Pasta\\database",
+  "PastaSaida": "\\\\SERVIDOR\\Pasta\\ArcelorMittal",
+
+  // E-mail enviado a cada cotação (SMTP 587/STARTTLS)
+  "EmailRemetente": "remetente@empresa.com.br",
+  "EmailDestino": "destino@empresa.com.br",
+  "SmtpHost": "smtp.provedor.com.br",
+  "SmtpPorta": 587
+}
