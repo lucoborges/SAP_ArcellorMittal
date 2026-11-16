@@ -50,9 +50,35 @@ namespace SAP_ArcellorMittal.Config
             }
         }
 
-        public const string UrlPortal = "https://srm.arcelormittal.com.br/sap/bc/nwbc/";
+        private static int EnvInt(string nome, int doConfig, int padrao)
+        {
+            if (int.TryParse(Environment.GetEnvironmentVariable(nome), out var v) && v != 0) return v;
+            return doConfig != 0 ? doConfig : padrao;
+        }
+
+        public static string UrlPortal => Env("ARCELOR_URL_PORTAL", Local.UrlPortal ?? "https://srm.arcelormittal.com.br/sap/bc/nwbc/");
         /// <summary>Logoff padrão do SAP (ICF): encerra a sessão no servidor.</summary>
-        public const string UrlLogoff = "https://srm.arcelormittal.com.br/sap/public/bc/icf/logoff";
+        public static string UrlLogoff => Env("ARCELOR_URL_LOGOFF", Local.UrlLogoff ?? "https://srm.arcelormittal.com.br/sap/public/bc/icf/logoff");
+
+        /// <summary>chrome.exe a usar (ex.: o Chrome instalado no servidor). Vazio = Chromium do Playwright.</summary>
+        public static string NavegadorExecutavel => Env("ARCELOR_NAVEGADOR", Local.NavegadorExecutavel);
+
+        /// <summary>Minutos entre as verificações (a opção --intervalo-min tem prioridade).</summary>
+        public static int IntervaloMinutos => Math.Max(1, EnvInt("ARCELOR_INTERVALO_MIN", Local.IntervaloMinutos, 60));
+
+        // Logs: pasta, dias guardados e tamanho máximo de cada arquivo
+        public static string PastaLogs => Env("ARCELOR_PASTA_LOGS", Local.PastaLogs ?? Path.Combine(AppContext.BaseDirectory, "logs"));
+        public static int LogDiasGuardados => Math.Max(1, EnvInt("ARCELOR_LOG_DIAS", Local.LogDiasGuardados, 30));
+        public static int LogTamanhoMaxMb => Math.Max(1, EnvInt("ARCELOR_LOG_MAX_MB", Local.LogTamanhoMaxMb, 10));
+
+        /// <summary>Criar este arquivo pede ao robô para encerrar com calma (logoff no SAP). Usado pelo deploy.</summary>
+        public static string ArquivoParada => Path.Combine(PastaLogs, "parar.sinal");
+
+        // Rota de saúde: GET http://endereço:porta/health. Porta -1 desliga.
+        // Fora do próprio servidor (endereço diferente de 127.0.0.1) só funciona com ARCELOR_SAUDE_TOKEN definido.
+        public static string SaudeEndereco => Env("ARCELOR_SAUDE_ENDERECO", Local.SaudeEndereco ?? "127.0.0.1");
+        public static int SaudePorta => EnvInt("ARCELOR_SAUDE_PORTA", Local.SaudePorta, 5080);
+        public static string SaudeToken => Environment.GetEnvironmentVariable("ARCELOR_SAUDE_TOKEN");
 
         // Planilha do vendedor: só as cotações que ele já finalizou. O robô apenas LÊ (para não reprocessar
         // o que já foi finalizado). Opcional: sem ela, o controle é só pelo banco JSON.

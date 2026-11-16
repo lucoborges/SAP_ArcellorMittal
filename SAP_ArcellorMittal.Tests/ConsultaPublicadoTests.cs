@@ -23,8 +23,8 @@ public class ConsultaPublicadoTests
 
     private static async Task<(string Texto, int Quantidade)> Localizar(bool selecionado, string padrao)
     {
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+        using var playwright = await NavegadorDeTeste.CriarPlaywrightAsync();
+        await using var browser = await NavegadorDeTeste.AbrirAsync(playwright);
         var page = await browser.NewPageAsync();
         await page.SetContentAsync(Html(selecionado));
         var (link, texto, quantidade) = await ExtracaoService.LocalizarConsulta(page.MainFrame, padrao);

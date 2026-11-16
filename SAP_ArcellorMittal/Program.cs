@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -49,7 +50,7 @@ namespace SAP_ArcellorMittal
         /// </summary>
         static async Task<int> Main(string[] args)
         {
-            Console.OutputEncoding = Encoding.UTF8;
+            try { Console.OutputEncoding = Encoding.UTF8; } catch { /* sem console (tarefa agendada) */ }
             bool Tem(string flag) => args.Contains(flag, StringComparer.OrdinalIgnoreCase);
             string Valor(string flag)
             {
@@ -58,6 +59,21 @@ namespace SAP_ArcellorMittal
             }
 
             Log.Detalhado = Tem("--detalhado");
+            int intervaloPadrao = 60;
+            try
+            {
+                Log.Configurar(Settings.PastaLogs, Settings.LogDiasGuardados, Settings.LogTamanhoMaxMb);
+                intervaloPadrao = Settings.IntervaloMinutos;
+                // Senhas nunca vão para o log, mesmo que apareçam numa mensagem de erro
+                Log.RegistrarSegredo(Settings.SmtpSenha);
+                Log.RegistrarSegredo(Settings.SaudeToken);
+                foreach (var c in Settings.Contas) Log.RegistrarSegredo(c.Senha);
+            }
+            catch (Exception ex)
+            {
+                Log.Erro($"❌ Configuração inválida: {(ex.InnerException ?? ex).Message}");
+                return 1;
+            }
             Log.LimparAntigos();
 
             var opcoes = new Opcoes
@@ -69,7 +85,7 @@ namespace SAP_ArcellorMittal
                 SemEmail = Tem("--sem-email"),
                 // Padrão do sistema: 24/7 em segundo plano. (--continuo e --segundo-plano ainda são aceitos, sem efeito.)
                 Continuo = !Tem("--uma-vez"),
-                IntervaloMinutos = int.TryParse(Valor("--intervalo-min"), out var m) && m > 0 ? m : 60,
+                IntervaloMinutos = int.TryParse(Valor("--intervalo-min"), out var m) && m > 0 ? m : intervaloPadrao,
                 SegundoPlano = !Tem("--janela-visivel"),
             };
 
@@ -111,9 +127,11 @@ namespace SAP_ArcellorMittal
             // Ctrl+C no modo contínuo: interrompe a espera atual e fecha o navegador com calma
             using var cancelar = new CancellationTokenSource();
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancelar.Cancel(); Log.Aviso("⏹️ Parada solicitada (Ctrl+C)..."); };
+            ServidorSaude saude = null;
 
             try
             {
+                VigiarArquivoDeParada(cancelar);
                 var contas = Settings.Contas;
                 if (!string.IsNullOrWhiteSpace(opcoes.SomenteConta))
                     contas = contas.Where(c => c.Usuario.Equals(opcoes.SomenteConta, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -129,12 +147,30 @@ namespace SAP_ArcellorMittal
 
                 Log.Info($"🤖 Robô ArcelorMittal — contas: {string.Join(", ", contas.Select(c => c.Usuario))}" +
                          (opcoes.Continuo ? $" — modo contínuo, a cada {opcoes.IntervaloMinutos} min" : ""));
+                var (versao, commit) = EstadoRobo.VersaoECommit();
+                Log.Detalhe($"Versão {versao} ({(commit.Length > 7 ? commit.Substring(0, 7) : commit)}) — config: {ConfigLocal.CaminhoEmUso ?? "só variáveis de ambiente"} — logs: {Log.Pasta}");
 
+                EstadoRobo.Reiniciar(opcoes.IntervaloMinutos, contas.Count);
+                if (opcoes.Continuo && Settings.SaudePorta > 0)
+                {
+                    try
+                    {
+                        saude = ServidorSaude.Iniciar(Settings.SaudeEndereco, Settings.SaudePorta, Settings.SaudeToken);
+                        Log.Detalhe($"🩺 Rota de saúde em http://{Settings.SaudeEndereco}:{saude.Porta}/health");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Aviso($"⚠️ Rota de saúde não iniciada: {ex.Message}");
+                    }
+                }
+
+                Compatibilidade.PrepararPlaywright();
                 playwright = await Playwright.CreateAsync();
 
                 for (int ciclo = 1; !cancelar.IsCancellationRequested; ciclo++)
                 {
                     var inicioCiclo = DateTime.Now;
+                    EstadoRobo.IniciarCiclo(ciclo);
                     if (opcoes.Continuo) Log.Secao($"CICLO {ciclo} — {inicioCiclo:dd/MM/yyyy HH:mm}");
 
                     // O navegador pode ter sido fechado/derrubado entre os ciclos: abre de novo (as sessões se perdem)
@@ -145,10 +181,10 @@ namespace SAP_ArcellorMittal
                         browser = await AbrirNavegador(playwright);
                     }
 
-                    int codigoCiclo;
+                    int codigoCiclo, novasCiclo = 0;
                     try
                     {
-                        codigoCiclo = await ExecutarCiclo(browser, contas, sessoes, email, opcoes);
+                        (codigoCiclo, novasCiclo) = await ExecutarCiclo(browser, contas, sessoes, email, opcoes, cancelar.Token);
                     }
                     catch (Exception ex)
                     {
@@ -158,11 +194,15 @@ namespace SAP_ArcellorMittal
                     }
                     codigoSaida = opcoes.Continuo ? 0 : codigoCiclo;
 
-                    if (!opcoes.Continuo) break;
-
                     // Espera nunca negativa: Task.Delay(-1 ms) significa "esperar para sempre"
                     var espera = inicioCiclo.AddMinutes(opcoes.IntervaloMinutos) - DateTime.Now;
                     if (espera < TimeSpan.Zero) espera = TimeSpan.Zero;
+                    // Ciclo interrompido por um pedido de parada não conta como resultado
+                    if (!cancelar.IsCancellationRequested)
+                        EstadoRobo.ConcluirCiclo(codigoCiclo, novasCiclo, opcoes.Continuo ? DateTime.Now + espera : null);
+
+                    if (!opcoes.Continuo || cancelar.IsCancellationRequested) break;
+
                     Log.Info(espera == TimeSpan.Zero
                         ? "💤 A verificação passou do intervalo; a próxima começa agora."
                         : $"💤 Próxima verificação às {DateTime.Now + espera:HH:mm}.");
@@ -185,9 +225,40 @@ namespace SAP_ArcellorMittal
                 await SairDoPortal(sessoes);
                 try { if (browser != null) await browser.CloseAsync(); } catch { }
                 playwright?.Dispose();
+                saude?.Dispose();
+                Log.Info("👋 Robô encerrado.");
             }
 
             return codigoSaida;
+        }
+
+        /// <summary>
+        /// Parada com calma sem console (tarefa agendada, deploy): quem quiser parar o robô cria o arquivo
+        /// <see cref="Settings.ArquivoParada"/>; o robô termina a cotação em andamento, faz logoff no SAP e sai.
+        /// </summary>
+        private static void VigiarArquivoDeParada(CancellationTokenSource cancelar)
+        {
+            var arquivo = Settings.ArquivoParada;
+            try { File.Delete(arquivo); } catch { } // sinal velho de uma parada anterior
+            var token = cancelar.Token;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    while (!token.IsCancellationRequested)
+                    {
+                        if (File.Exists(arquivo))
+                        {
+                            try { File.Delete(arquivo); } catch { }
+                            Log.Aviso("⏹️ Parada solicitada (arquivo de sinal)...");
+                            cancelar.Cancel();
+                            return;
+                        }
+                        await Task.Delay(2000, token);
+                    }
+                }
+                catch { /* encerrando */ }
+            });
         }
 
         /// <summary>
@@ -215,6 +286,8 @@ namespace SAP_ArcellorMittal
         private static Task<IBrowser> AbrirNavegador(IPlaywright playwright) =>
             playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
+                // Chrome do próprio servidor quando configurado (Windows antigos não rodam o Chromium do Playwright)
+                ExecutablePath = string.IsNullOrWhiteSpace(Settings.NavegadorExecutavel) ? null : Settings.NavegadorExecutavel,
                 Headless = false,
                 SlowMo = 100, // pequena pausa entre ações: as telas Web Dynpro do SAP redesenham após cada evento
                 // O Chromium desacelera páginas minimizadas/atrás de outras janelas; isto mantém o ritmo normal em segundo plano
@@ -226,9 +299,9 @@ namespace SAP_ArcellorMittal
                 }
             });
 
-        /// <summary>Um ciclo: reenvia e-mails pendentes e verifica todas as contas. Retorna 0, 1 (falha grave) ou 2 (falhas parciais).</summary>
-        private static async Task<int> ExecutarCiclo(IBrowser browser, List<ContaPortal> contas, Dictionary<string, SessaoConta> sessoes,
-                                                     EmailService email, Opcoes opcoes)
+        /// <summary>Um ciclo: reenvia e-mails pendentes e verifica todas as contas. Código: 0, 1 (falha grave) ou 2 (falhas parciais).</summary>
+        private static async Task<(int Codigo, int Novas)> ExecutarCiclo(IBrowser browser, List<ContaPortal> contas, Dictionary<string, SessaoConta> sessoes,
+                                                     EmailService email, Opcoes opcoes, CancellationToken parar)
         {
             int codigoSaida = 0;
             int novasNoCiclo = 0;
@@ -240,6 +313,7 @@ namespace SAP_ArcellorMittal
 
             foreach (var conta in contas)
             {
+                if (parar.IsCancellationRequested) break;
                 int codigoConta;
                 try
                 {
@@ -258,7 +332,7 @@ namespace SAP_ArcellorMittal
                         sessao.Pagina = await sessao.Contexto.NewPageAsync();
                     }
 
-                    var (codigo, novas) = await ProcessarConta(sessao, conta, banco, email, opcoes);
+                    var (codigo, novas) = await ProcessarConta(sessao, conta, banco, email, opcoes, parar);
                     codigoConta = codigo;
                     novasNoCiclo += novas;
                 }
@@ -278,7 +352,7 @@ namespace SAP_ArcellorMittal
             Log.Info("");
             Log.Info($"🏁 Verificação concluída: {novasNoCiclo} cotação(ões) nova(s)" +
                      (pendentes.Count > 0 ? $"; ⚠️ {pendentes.Count} e-mail(s) pendente(s): {string.Join(", ", pendentes.Select(e => e.NumeroEvento))}" : "."));
-            return codigoSaida;
+            return (codigoSaida, novasNoCiclo);
         }
 
         private static async Task ReenviarEmailsPendentes(EventosDatabase banco, EmailService email, bool semEmail)
@@ -300,7 +374,7 @@ namespace SAP_ArcellorMittal
         /// Retorna (0 = ok / 1 = falha grave / 2 = alguns eventos com falha, quantidade processada).
         /// </summary>
         private static async Task<(int Codigo, int Novas)> ProcessarConta(SessaoConta sessao, ContaPortal conta, EventosDatabase banco,
-                                                                          EmailService email, Opcoes opcoes)
+                                                                          EmailService email, Opcoes opcoes, CancellationToken parar)
         {
             Log.Secao($"CONTA {conta.Usuario}");
 
@@ -330,6 +404,12 @@ namespace SAP_ArcellorMittal
             if (await loginService.PrecisaLogin())
             {
                 bool manual = opcoes.LoginManual || string.IsNullOrWhiteSpace(conta.Senha);
+                if (manual && !Environment.UserInteractive)
+                {
+                    // Tarefa agendada sem área de trabalho: ninguém vê a janela para digitar a senha
+                    Log.Erro($"❌ A conta {conta.Usuario} precisa de login manual, mas o robô está rodando sem tela. Defina a variável de ambiente {conta.VariavelSenha}.");
+                    return (1, 0);
+                }
                 if (manual && opcoes.SegundoPlano) await JanelaHelper.TrazerParaFrenteAsync(page); // a pessoa precisa ver a janela
 
                 bool loginSucesso = manual
@@ -368,7 +448,7 @@ namespace SAP_ArcellorMittal
             var falhas = new List<string>();
             var numerosAdicionados = new HashSet<string>();
 
-            while (true)
+            while (!parar.IsCancellationRequested)
             {
                 if (totalEncontrados >= opcoes.MaxEventos)
                 {

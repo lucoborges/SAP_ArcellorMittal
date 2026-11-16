@@ -10,6 +10,22 @@ namespace SAP_ArcellorMittal.Helpers
     /// Minimizar faz o Chromium tratar a página como oculta e parar de desenhá-la — o SAP fica lento e a
     /// lista "Publicado" trava. Fora da tela a página continua "visível" para o SAP e não atrapalha quem usa o PC.
     /// </summary>
+    /// <summary>Ajustes para rodar em Windows antigos (o servidor de produção é Windows Server 2012 R2).</summary>
+    public static class Compatibilidade
+    {
+        /// <summary>
+        /// O Node embutido no Playwright só aceita Windows 10 / Server 2016 ou mais novo e encerra na partida
+        /// ("Process exited") nos anteriores, a menos que NODE_SKIP_PLATFORM_CHECK=1 esteja definida.
+        /// Chamar antes de Playwright.CreateAsync(): o driver herda a variável deste processo.
+        /// </summary>
+        public static void PrepararPlaywright()
+        {
+            if (OperatingSystem.IsWindows() && Environment.OSVersion.Version.Major < 10 &&
+                string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NODE_SKIP_PLATFORM_CHECK")))
+                Environment.SetEnvironmentVariable("NODE_SKIP_PLATFORM_CHECK", "1");
+        }
+    }
+
     public static class JanelaHelper
     {
         private const int ForaDaTela = -32000;

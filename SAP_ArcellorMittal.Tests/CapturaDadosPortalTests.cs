@@ -20,8 +20,8 @@ public class CapturaDadosPortalTests
     [Fact]
     public async Task Le_as_colunas_da_linha_do_evento_pelos_titulos()
     {
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+        using var playwright = await NavegadorDeTeste.CriarPlaywrightAsync();
+        await using var browser = await NavegadorDeTeste.AbrirAsync(playwright);
         var page = await browser.NewPageAsync();
         await page.SetContentAsync(Html);
 
@@ -37,8 +37,8 @@ public class CapturaDadosPortalTests
     [Fact]
     public async Task Evento_que_nao_esta_na_tabela_devolve_vazio()
     {
-        using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+        using var playwright = await NavegadorDeTeste.CriarPlaywrightAsync();
+        await using var browser = await NavegadorDeTeste.AbrirAsync(playwright);
         var page = await browser.NewPageAsync();
         await page.SetContentAsync(Html);
 

@@ -1,0 +1,61 @@
+name: Deploy em produção
+
+# Só roda a partir da branch principal (push) ou manualmente. Nunca em pull request:
+# o runner é o próprio servidor de produção.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-producao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, arcelor]
+    timeout-minutes: 45
+    env:
+      RAIZ: C:\Servicos\SAP_ArcellorMittal
+    steps:
+      # Git direto em vez de actions/checkout: não depende do Node embutido do runner
+      # (o servidor é Windows Server 2012 R2) e funciona com o repositório privado.
+      - name: Baixar o código
+        shell: powershell
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          $src = Join-Path $env:RAIZ 'src'
+          $url = "https://github.com/$env:GITHUB_REPOSITORY.git"
+          $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:TOKEN"))
+          if (-not (Test-Path (Join-Path $src '.git'))) {
+            New-Item -ItemType Directory -Force -Path $src | Out-Null
+            git init -q $src
+            if ($LASTEXITCODE -ne 0) { throw 'git init falhou' }
+          }
+          git -C $src -c "http.extraheader=AUTHORIZATION: basic $auth" fetch -q --force --depth 1 $url $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'git fetch falhou' }
+          git -C $src checkout -q --force --detach FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'git checkout falhou' }
+          git -C $src clean -q -fdx
+          git -C $src log -1 --format="Commit: %h %s"
+
+      - name: Compilar, trocar, conferir (desfaz se falhar)
+        shell: powershell
+        run: |
+          $src = Join-Path $env:RAIZ 'src'
+          & (Join-Path $src 'deploy\deploy.ps1') -Origem $src -Commit $env:GITHUB_SHA -Raiz $env:RAIZ
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Últimas linhas do log do robô
+        if: always()
+        shell: powershell
+        run: |
+          $log = Get-ChildItem (Join-Path $env:RAIZ 'logs') -Filter 'robo_*.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1
+          if ($log) { Get-Content $log.FullName -Tail 30 -Encoding UTF8 }

@@ -16,5 +16,27 @@
   "EmailRemetente": "remetente@empresa.com.br",
   "EmailDestino": "destino@empresa.com.br",
   "SmtpHost": "smtp.provedor.com.br",
-  "SmtpPorta": 587
+  "SmtpPorta": 587,
+
+  // --- Opcionais (os valores abaixo são os padrões) ---
+
+  // Endereços do portal
+  "UrlPortal": "https://srm.arcelormittal.com.br/sap/bc/nwbc/",
+  "UrlLogoff": "https://srm.arcelormittal.com.br/sap/public/bc/icf/logoff",
+
+  // chrome.exe a usar; vazio = Chromium instalado pelo Playwright
+  "NavegadorExecutavel": "",
+
+  // Minutos entre as verificações
+  "IntervaloMinutos": 60,
+
+  // Logs: pasta (vazio = "logs" ao lado do executável), dias guardados e tamanho máximo por arquivo
+  "PastaLogs": "",
+  "LogDiasGuardados": 30,
+  "LogTamanhoMaxMb": 10,
+
+  // Rota de saúde: GET http://SaudeEndereco:SaudePorta/health (porta -1 desliga).
+  // Para escutar fora de 127.0.0.1 é obrigatório definir a variável de ambiente ARCELOR_SAUDE_TOKEN.
+  "SaudeEndereco": "127.0.0.1",
+  "SaudePorta": 5080
 }
