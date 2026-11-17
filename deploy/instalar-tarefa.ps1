@@ -17,7 +17,7 @@
 #   powershell -File deploy\instalar-tarefa.ps1 -Remover       # remove a tarefa
 # ============================================================================
 param(
-    [string]$Raiz = 'C:\Servicos\SAP_ArcellorMittal',
+    [string]$Raiz = 'C:\Services\SAP_ArcellorMittal',
     [string]$NomeTarefa = 'RoboArcelorMittal',
     [string]$Usuario = "$env:COMPUTERNAME\Administrator",
     [switch]$ComSenha,

@@ -22,7 +22,7 @@ jobs:
     runs-on: [self-hosted, arcelor]
     timeout-minutes: 45
     env:
-      RAIZ: C:\Servicos\SAP_ArcellorMittal
+      RAIZ: C:\Services\SAP_ArcellorMittal
     steps:
       # Git direto em vez de actions/checkout: não depende do Node embutido do runner
       # (o servidor é Windows Server 2012 R2) e funciona com o repositório privado.

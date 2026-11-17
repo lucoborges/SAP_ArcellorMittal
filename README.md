@@ -102,7 +102,7 @@ recupera na partida seguinte, mas demora mais).
 
 ## Produção (servidor)
 
-Estrutura em `C:\Servicos\SAP_ArcellorMittal\`:
+Estrutura em `C:\Services\SAP_ArcellorMittal\`:
 
 | Pasta | Conteúdo |
 |---|---|

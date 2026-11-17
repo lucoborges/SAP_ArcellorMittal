@@ -10,12 +10,12 @@
 #   5. se não voltar: restaura o backup, inicia de novo e termina com erro
 #
 # Uso (normalmente chamado pelo workflow .github/workflows/deploy.yml):
-#   powershell -File deploy\deploy.ps1 -Origem C:\Servicos\SAP_ArcellorMittal\src -Commit <sha>
+#   powershell -File deploy\deploy.ps1 -Origem C:\Services\SAP_ArcellorMittal\src -Commit <sha>
 # ============================================================================
 param(
     [string]$Origem = (Split-Path $PSScriptRoot -Parent),
     [string]$Commit = '',
-    [string]$Raiz = 'C:\Servicos\SAP_ArcellorMittal',
+    [string]$Raiz = 'C:\Services\SAP_ArcellorMittal',
     [string]$NomeTarefa = 'RoboArcelorMittal',
     [string]$EnderecoSaude = '127.0.0.1',
     [int]$PortaSaude = 5080,
