@@ -53,9 +53,11 @@ jobs:
           & (Join-Path $src 'deploy\deploy.ps1') -Origem $src -Commit $env:GITHUB_SHA -Raiz $env:RAIZ
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Últimas linhas do log do robô
+      # Só a rota de saúde (sem dados sensíveis). O log do robô tem contas do portal e dados de
+      # cotações: fica só no servidor (logs\robo_*.log), nunca no log do GitHub Actions.
+      - name: Situação do robô
         if: always()
         shell: powershell
         run: |
-          $log = Get-ChildItem (Join-Path $env:RAIZ 'logs') -Filter 'robo_*.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1
-          if ($log) { Get-Content $log.FullName -Tail 30 -Encoding UTF8 }
+          try { Invoke-RestMethod -Uri 'http://127.0.0.1:5080/health' -TimeoutSec 10 | ConvertTo-Json -Compress }
+          catch { Write-Host "Rota de saúde não respondeu: $($_.Exception.Message)" }
